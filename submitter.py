@@ -17,30 +17,58 @@ parser = argparse.ArgumentParser(description='Makes a python submission to domju
 parser.add_argument('--username',help='sets the username')
 parser.add_argument('--password',help='sets the password')
 
-parser.add_argument('filename', help='name of the file to submit')
-parser.add_argument('problem_name', help='name of the problem')
+parser.add_argument('filename', help='name of the file to submit', nargs='?', default=None)
+parser.add_argument('problem_name', help='name of the problem', nargs='?', default=None)
 
 args = parser.parse_args()
 
 if args.username != None:
     change_credentials(args.username, args.password)
+    print('credentials changed')
 
 file = json.load(open("credentials.json"))
 
 user = file['user']
 passwd = file['password']
 
-
 dj_url= 'https://prototypes.mat.unical.it/fondprog1/team/'
+
 sess = req.Session()
 
-x = sess.post(dj_url+"index.php",data={"cmd":"login","login":user,"passwd":passwd},verify=False)
+sess.post(dj_url+"index.php",data={"cmd":"login","login":user,"passwd":passwd},verify=False)
 
-multipart_data = {
-    'code[]':(args.filename,open(args.filename,'rb').read().decode()),
-    'probid': (None, args.problem_name),
-    'langid':(None,'py3'),
-    'submit':(None,'submit')
-}
+if args.filename != None and args.problem_name !=None:
 
-r = sess.post(dj_url+"upload.php",files=multipart_data)
+    multipart_data = {
+        'code[]':(args.filename,open(args.filename,'rb').read().decode()),
+        'probid': (None, args.problem_name),
+        'langid':(None,'py3'),
+        'submit':(None,'submit')
+    }
+
+    sess.post(dj_url+"upload.php",files=multipart_data)
+
+while True:
+    sleep(1)
+    r = sess.get(dj_url)
+
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(r.text,'html.parser')
+    try:
+        result_url = soup.find(id='submitlist').find('tbody').find('tr').findAll('td')[3].find('a')['href']
+    except:
+        print('pending')
+        continue
+    r = sess.get(dj_url+result_url)
+
+    soup = BeautifulSoup(r.text,'html.parser')
+
+    compilation = soup.findAll('p')[2].text
+    status = soup.findAll('p')[0].text
+
+    print(compilation)
+
+    print(status)
+
+    break  #exits the program
